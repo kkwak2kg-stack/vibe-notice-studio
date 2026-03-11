@@ -1,81 +1,145 @@
 import streamlit as st
 from openai import OpenAI
-import json
 
-# 1. 페이지 설정 (기존 툴과 통일감 유지)
-st.set_page_config(page_title="Game Notice Studio Pro", page_icon="📢", layout="wide")
-st.title("📢 전문 게임 공지사항 생성기")
+# 1. 페이지 설정 및 디자인 (기존 툴과 통일감 유지)
+st.set_page_config(
+    page_title="Global Game Notice Studio Pro", 
+    page_icon="🌐", 
+    layout="wide"
+)
 
-# 2. API 키 설정 (기존 방식과 동일하게 유지)
-if "OPENAI_API_KEY" in st.secrets:
-    api_key = st.secrets["OPENAI_API_KEY"]
-else:
-    api_key = st.sidebar.text_input("OpenAI API Key 설정", type="password")
+# 커스텀 CSS로 좀 더 '게임 운영 툴'다운 분위기 연출
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    stButton>button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #ff4b4b;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-if api_key:
+st.title("🌐 글로벌 게임 공지사항 생성기")
+st.caption("OpenAI GPT-4o 기반 | 정기 점검, 패치노트, 이벤트 및 불건전 행위 대응 공지 지원")
+
+# 2. 보안 설정: Secrets에서 API 키 자동 로드
+# 이 방식은 화면에 키가 노출되지 않으며 보안상 가장 안전합니다.
+try:
+    if "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    else:
+        # 로컬 테스트 환경 배려 (Secrets가 없을 경우 사이드바 노출)
+        api_key = st.sidebar.text_input("OpenAI API Key (Secrets 미설정 시 입력)", type="password")
+    
+    if not api_key:
+        st.info("사이드바에서 API 키를 입력하거나 Streamlit Secrets 설정을 완료해주세요.")
+        st.stop()
+        
     client = OpenAI(api_key=api_key)
+except Exception as e:
+    st.error(f"설정 오류: {e}")
+    st.stop()
 
-    # [공지 생성 전용] 시스템 프롬프트 설정
-    SYSTEM_PROMPT = (
-        "너는 10년 차 베테랑 게임 커뮤니티 매니저(CM)이자 운영팀장이야.\n\n"
-        "### [작성 원칙]\n"
-        "1. 말투: 항상 정중하고 따뜻한 '해요체'를 사용하며, 유저를 '모험가님' 또는 '계승자님'으로 지칭해라.\n"
-        "2. 가독성: 마크다운(Markdown) 형식을 적극 활용하여 중요 정보를 표(Table)나 불렛포인트로 정리해라.\n"
-        "3. 감성적 접근: 단순 정보 전달을 넘어 유저의 기대감을 높이거나(업데이트), 진심으로 미안함을 전달(사과문)해라.\n"
-        "4. 전문성: 실제 대형 게임사(넥슨, 엔씨, 넷마블 등)의 공지 양식을 참고하여 격식을 갖춰라."
-    )
+# 3. UI 레이아웃 구성
+col1, col2 = st.columns([1, 1.5], gap="large")
 
-    # UI 레이아웃 구성
-    col1, col2 = st.columns([1, 1.5])
+with col1:
+    st.subheader("📋 공지 데이터 입력")
+    with st.form("notice_form"):
+        # 카테고리 구성 (기타/일반 공지 포함)
+        category = st.selectbox("공지 카테고리", 
+                            ["정기 점검 안내", "업데이트 패치노트", "이벤트 안내", 
+                             "긴급 장애 사과문", "당첨자 발표", "기타(운영 정책/일반 공지)"])
+        
+        # 다국어 선택 드롭다운
+        target_lang = st.selectbox("출력 언어 선택", 
+                            ["한국어", "영어(English)", "일본어(日本語)", 
+                             "중국어 간체(简体中文)", "중국어 번체(繁體中文)"])
+        
+        title = st.text_input("핵심 제목", placeholder="예: 불건전 행위 대응 및 운영 정책 안내")
+        
+        schedule = st.text_input("일정/시간", placeholder="예: 2026.03.12 10:00 ~ 14:00 (KST)")
+        
+        details = st.text_area("상세 내용", 
+                            placeholder="공지할 핵심 데이터를 적어주세요. (예: 정지 계정 수, 패치 리스트, 이벤트 보상 등)", 
+                            height=200)
+        
+        reward = st.text_input("보상 아이템", placeholder="예: 루비 500개 (없을 경우 비워둠)")
+        
+        submitted = st.form_submit_button("✨ 글로벌 공지 생성 시작")
 
-    with col1:
-        st.subheader("📋 공지 데이터 입력")
-        with st.form("notice_form"):
-            category = st.selectbox("공지 카테고리", 
-                                ["정기 점검 안내", "업데이트 패치노트", "이벤트 안내", "긴급 장애 사과문", "당첨자 발표"])
-            
-            title = st.text_input("핵심 제목", placeholder="예: 신규 영웅 '아이린' 등장 및 밸런스 조정")
-            
-            schedule = st.text_input("점검/이벤트 일정", placeholder="예: 2026.03.12 10:00 ~ 14:00 (4시간)")
-            
-            details = st.text_area("주요 상세 내용", placeholder="패치 내역, 버그 수정 리스트, 이벤트 참여 방법 등을 적어주세요.", height=200)
-            
-            reward = st.text_input("지급 보상", placeholder="예: 다이아 500개, 골드 100만")
-            
-            submitted = st.form_submit_button("✨ 전문 공지 생성 시작")
-
-    with col2:
-        st.subheader("📝 생성된 공지 미리보기")
-        if submitted:
-            if not title or not details:
-                st.warning("제목과 상세 내용을 입력해주세요.")
-            else:
-                with st.spinner('베테랑 CM이 공지문을 작성 중입니다...'):
-                    try:
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": SYSTEM_PROMPT},
-                                {"role": "user", "content": f"분류: {category}\n제목: {title}\n일정: {schedule}\n내용: {details}\n보상: {reward}\n\n위 데이터를 기반으로 공식 커뮤니티에 올릴 완성된 공지문을 작성해줘."}
-                            ],
-                            temperature=0.7
-                        )
-                        
-                        generated_text = response.choices[0].message.content
-                        
-                        # 결과 출력 카드 UI 스타일
-                        st.success("공지문 생성이 완료되었습니다!")
-                        st.divider()
-                        st.markdown(generated_text)
-                        
-                        st.divider()
-                        st.download_button("텍스트 파일로 저장", generated_text, file_name=f"notice_{category}.txt")
-                        
-                    except Exception as e:
-                        st.error(f"분석 중 오류 발생: {e}")
+with col2:
+    st.subheader("📝 생성 결과 미리보기")
+    
+    if submitted:
+        if not title or not details:
+            st.warning("제목과 상세 내용을 입력해야 공지를 생성할 수 있습니다.")
         else:
-            st.info("왼쪽 폼에 데이터를 입력하고 생성 버튼을 눌러주세요.")
+            with st.spinner(f'{target_lang} 버전으로 전문 CM이 작성 중입니다...'):
+                try:
+                    # 언어별 맞춤 로컬라이징 지시문
+                    lang_guidelines = {
+                        "한국어": "정중한 '해요체'를 사용하고 유저를 '모험가님' 혹은 '계승자님'이라 불러줘.",
+                        "영어(English)": "Use a professional yet friendly tone. Address users as 'Adventurers' or 'Players'. Use standard game industry terminology.",
+                        "일본어(日本語)": "Very polite 'Desu/Masu' style. Address users as '冒험者の皆様' (Adventurers). Use formal game service honorifics.",
+                        "중국어 간체(简体中文)": "Professional and formal tone. Address users as '各位勇士' or '各位玩家'. Use simplified characters.",
+                        "중국어 번체(繁體中文)": "Professional and formal tone using Traditional Chinese characters. Address users as '各位勇士'."
+                    }
 
-else:
+                    # AI 페르소나 및 작성 지침 (바이브 코딩의 핵심)
+                    system_instruction = f"""
+                    너는 글로벌 게임사의 10년차 시니어 커뮤니티 매니저(CM)야. 
+                    유저들이 신뢰를 느낄 수 있도록 전문적이면서도 친근한 공지사항을 {target_lang}로 작성해줘.
+                    
+                    [작성 지침]
+                    1. 톤앤매너: {lang_guidelines.get(target_lang, "")}
+                    2. 가독성: 마크다운(Markdown) 형식을 사용하여 제목, 리스트, 강조(볼드)를 적절히 섞을 것.
+                    3. 내용 구성: [인사말] - [내용 요약] - [상세 정보] - [주의사항/보상] - [맺음말] 순서로 구성할 것.
+                    4. 특수 상황: 만약 '기타(운영 정책)' 카테고리라면, 불건전 행위에 대해 단호한 운영 의지를 밝히고 클린한 게임 환경을 강조할 것.
+                    """
 
-    st.info("사이드바에서 OpenAI API 키를 설정해주세요.")
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": f"카테고리: {category}\n제목: {title}\n일정: {schedule}\n상세내용: {details}\n보상: {reward}\n\n위 데이터를 기반으로 {target_lang} 버전의 공지 전문을 작성해줘."}
+                        ],
+                        temperature=0.7
+                    )
+                    
+                    final_notice = response.choices[0].message.content
+                    
+                    # 결과 표시
+                    st.success(f"[{target_lang}] 공지 생성이 성공적으로 완료되었습니다!")
+                    st.divider()
+                    st.markdown(final_notice)
+                    st.divider()
+                    
+                    # 저장 버튼
+                    st.download_button(
+                        label=f"💾 {target_lang} 공지 파일로 저장",
+                        data=final_notice,
+                        file_name=f"GameNotice_{target_lang}.md",
+                        mime="text/markdown"
+                    )
+                    
+                except Exception as e:
+                    st.error(f"공지 생성 중 오류가 발생했습니다: {e}")
+    else:
+        # 초기 화면 가이드
+        st.info("왼쪽 양식을 작성한 뒤 '공지 생성 시작' 버튼을 눌러주세요.")
+        st.markdown("""
+        **💡 활용 팁:**
+        * **불건전 행위 대응:** 상세 내용에 '정지 계정 수'와 '위반 항목'을 적어보세요.
+        * **글로벌 배포:** 동일한 내용을 입력하고 '언어'만 바꿔서 여러 번 생성할 수 있습니다.
+        * **가독성:** AI가 표(Table) 형식을 사용해 가동 시간을 정리해줍니다.
+        """)
+
+# 사이드바 하단 정보
+st.sidebar.markdown("---")
+st.sidebar.caption("© 2026 Game Notice Studio Pro")
