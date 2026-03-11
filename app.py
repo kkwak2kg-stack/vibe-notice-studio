@@ -77,4 +77,5 @@ if api_key:
             st.info("왼쪽 폼에 데이터를 입력하고 생성 버튼을 눌러주세요.")
 
 else:
+
     st.info("사이드바에서 OpenAI API 키를 설정해주세요.")
