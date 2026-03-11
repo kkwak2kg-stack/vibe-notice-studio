@@ -4,18 +4,20 @@ from openai import OpenAI
 # 1. 페이지 설정
 st.set_page_config(page_title="Global Game Notice Studio Pro", page_icon="🌐", layout="wide")
 
-# CSS: 텍스트 박스 안의 문단 간격을 강제로 넓힘
+# CSS: 문단(<p>) 사이의 간격을 40px로 강제 설정하여 시각적 분리 확보
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     .notice-box {
         background-color: #1e2129;
-        padding: 40px;
+        padding: 45px;
         border-radius: 12px;
-        line-height: 2.5; /* 줄 간격 대폭 확대 */
         color: #ffffff;
         font-size: 16px;
-        white-space: pre-line; /* 줄바꿈 기호를 그대로 반영 */
+        line-height: 1.8;
+    }
+    .notice-box p {
+        margin-bottom: 35px; /* 문단 간의 간격을 아주 넓게 설정 */
     }
     stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #FF4B4B; color: white; font-weight: bold; }
     </style>
@@ -41,7 +43,7 @@ with col1:
         target_lang = st.selectbox("출력 언어 선택", ["한국어", "영어(English)", "일본어(日本語)", "중국어 간체(简体中文)", "중국어 번체(繁體中文)"])
         title = st.text_input("핵심 제목")
         schedule = st.text_input("일정/시간")
-        details = st.text_area("상세 내용", height=200)
+        details = st.text_area("상세 내용", height=200, placeholder="예: 불건전 행위 10개 계정 영구 정지, 공정한 환경 조성 위해 강력 조치 예정")
         reward = st.text_input("보상 아이템")
         submitted = st.form_submit_button("✨ 전문 공지 생성 시작")
 
@@ -52,20 +54,24 @@ with col2:
         if not title or not details:
             st.warning("제목과 내용을 입력해주세요.")
         else:
-            with st.spinner('가독성을 극대화하여 작성 중입니다...'):
+            with st.spinner('문맥을 다듬어 공지를 작성 중입니다...'):
                 try:
+                    # [문맥 자연스러움 및 물리적 문단 분리 지침]
                     system_instruction = f"""
-                    너는 글로벌 대형 게임사의 시니어 파트장급 CM이야. 
-                    유저들에게 신뢰감을 줄 수 있도록 격식 있고 가독성 좋은 공지를 {target_lang}로 작성해줘.
+                    너는 대형 게임사의 시니어 CM 파트장이야. 
+                    유저들이 읽었을 때 문맥이 매끄럽고 정중하며, 가독성이 뛰어난 공지를 {target_lang}로 작성해줘.
 
-                    [작성 수칙 - 절대 준수]
-                    1. 호칭: '안녕하세요.'로 시작해라.
-                    2. 문체: 정중한 '하십시오체'를 사용해라.
-                    3. 문단 구분: 각 문단 사이에는 반드시 빈 줄을 삽입해라.
-                    4. 마무리 인사: 아래 세 줄은 반드시 각각 개별 줄로 작성하고 사이사이에 빈 줄을 넣어라.
-                       항상 저희 게임을 아껴주시는 유저 여러분께 진심으로 감사드립니다.
-                       앞으로도 더욱 즐거운 게임 환경을 제공하기 위해 최선을 다하겠습니다.
-                       감사합니다.
+                    [작성 수칙 - 무조건 준수]
+                    1. 문장 연결: 단순 나열이 아니라 문장 간의 인과관계를 살려 자연스럽게 연결해라.
+                       (예: "영구 정지 조치를 취하였습니다. 이는 ~입니다" 대신 "영구 정지 조치를 진행하였습니다. 앞으로도 ~할 수 있도록 강력한 대응을 지속할 예정입니다"와 같이 연결)
+                    2. 호칭: '안녕하세요.'로 시작하고 격식 있는 '하십시오체'를 유지해라.
+                    3. **물리적 문단 처리(HTML)**:
+                       - 모든 독립된 문단은 반드시 <p>태그로 감싸라. 
+                       - 예: <p>안녕하세요.</p><p>본문 내용...</p>
+                    4. 마무리 인사: 아래 세 줄은 각각 개별 <p>태그로 감싸서 확실히 분리해라.
+                       - 항상 저희 게임을 아껴주시는 유저 여러분께 진심으로 감사드립니다.
+                       - 앞으로도 더욱 즐거운 게임 환경을 제공하기 위해 최선을 다하겠습니다.
+                       - 감사합니다.
                     """
 
                     response = client.chat.completions.create(
@@ -74,21 +80,21 @@ with col2:
                             {"role": "system", "content": system_instruction},
                             {"role": "user", "content": f"카테고리: {category}\n제목: {title}\n일정: {schedule}\n내용: {details}\n보상: {reward}"}
                         ],
-                        temperature=0.3
+                        temperature=0.4
                     )
                     
-                    # 💡 [핵심 해결책] AI가 준 텍스트의 모든 줄바꿈(\n)을 2배(\n\n)로 변환하여 강제 공간 확보
-                    raw_text = response.choices[0].message.content
-                    formatted_text = raw_text.replace("\n\n", "\n\n\n").replace("\n", "\n\n")
+                    final_notice = response.choices[0].message.content
                     
                     st.success("공지 생성이 완료되었습니다!")
                     st.divider()
                     
-                    # 결과 출력 (pre-line 설정을 통해 엔터를 그대로 보여줌)
-                    st.markdown(f'<div class="notice-box">{formatted_text}</div>', unsafe_allow_html=True)
+                    # 💡 HTML 렌더링을 통해 <p> 태그의 margin-bottom(간격)을 확실히 적용
+                    st.markdown(f'<div class="notice-box">{final_notice}</div>', unsafe_allow_html=True)
                     
                     st.divider()
-                    st.download_button(label="💾 파일 저장", data=raw_text, file_name="Notice.txt")
+                    # 저장용 텍스트에서는 태그 제거
+                    clean_save = final_notice.replace("<p>", "").replace("</p>", "\n\n")
+                    st.download_button(label="💾 파일 저장", data=clean_save, file_name="Official_Notice.txt")
                     
                 except Exception as e:
                     st.error(f"오류 발생: {e}")
