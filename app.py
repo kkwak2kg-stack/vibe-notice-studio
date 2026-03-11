@@ -8,7 +8,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# UI 레이아웃 스타일
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -20,13 +19,16 @@ st.markdown("""
         color: white;
         font-weight: bold;
     }
+    .stMarkdown p {
+        line-height: 1.8;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🌐 글로벌 게임 공지사항 생성기")
-st.caption("일관된 문체와 최적화된 가독성으로 전문적인 공지를 생성합니다.")
 
-# 2. 보안 설정 (Secrets 사용)
+# 2. 보안 설정
 try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
@@ -64,13 +66,13 @@ with col2:
         else:
             with st.spinner(f'공지를 작성 중입니다...'):
                 try:
-                    # 격식 있는 말투 및 가독성 지침
+                    # [가독성 및 호칭 지침 대폭 강화]
                     lang_guidelines = {
-                        "한국어": "엄격한 '하십시오체' 사용. 각 문단 사이에는 반드시 빈 줄을 삽입하여 줄바꿈을 명확히 하세요.",
-                        "영어(English)": "Formal tone. Use clear paragraph breaks with empty lines.",
-                        "일본어(日本語)": "Formal Keigo. Ensure double line breaks between sections.",
-                        "중국어 간체(简体中文)": "Formal tone. Clear spacing between paragraphs.",
-                        "중국어 번체(繁體中文)": "Formal tone. Clear spacing between paragraphs."
+                        "한국어": "첫 인사는 반드시 '안녕하세요'로 시작하세요. 모든 문단 사이에는 반드시 엔터를 두 번 입력하여 '빈 줄'을 만드세요.",
+                        "영어(English)": "Start with 'Hello'. Use double line breaks between paragraphs.",
+                        "일본어(日本語)": "Start with 'こんにちは'. Ensure clear spacing between sections.",
+                        "중국어 간체(简体中文)": "Start with '你好'. Use clear line breaks.",
+                        "중국어 번체(繁體中文)": "Start with '你好'. Use clear line breaks."
                     }
 
                     system_instruction = f"""
@@ -78,11 +80,17 @@ with col2:
                     유저들에게 공식적인 신뢰감을 주는 공지를 {target_lang}로 작성해줘.
 
                     [작성 수칙 - 절대 준수]
-                    1. 문체: {lang_guidelines.get(target_lang)}
-                    2. 가독성: 각 문단이나 섹션(인사말, 본문, 안내, 맺음말 등) 사이에는 반드시 **'2번의 줄바꿈(Double Newline)'**을 수행하여 빈 줄을 삽입해라.
-                    3. 레이블 금지: '내용 요약', '상세 정보' 같은 불필요한 소제목 레이블을 텍스트로 쓰지 마라.
-                    4. 형식: 제목은 마크다운 큰 제목(#)으로 작성하고, 중요한 일정이나 항목은 리스트(-) 형식을 사용해라.
-                    5. 구조: [인사말] - [공지 본문] - [일정/항목 안내] - [주의사항 및 보상] - [감사 인사] 순으로 섹션 이름 없이 작성해라.
+                    1. 인사말: 한국어 기준, 무조건 '안녕하세요'로 시작해라. '안녕하십니까'는 금지다.
+                    2. **문단 간격(가독성)**: 문단과 문단 사이에는 반드시 '완전한 빈 줄'이 하나 이상 존재해야 한다. (텍스트 사이에 \n\n을 강제로 넣어라)
+                    3. 문체: {lang_guidelines.get(target_lang)} 하십시오체(~합니다)를 사용해라.
+                    4. 레이블 금지: '내용 요약', '상세 정보' 같은 제목을 텍스트로 노출하지 마라.
+                    5. 구성 예시:
+                       안녕하세요. 운영팀입니다. (빈 줄)
+                       본문 내용입니다. (빈 줄)
+                       - 상세 리스트 (빈 줄)
+                       항상 감사드립니다. (빈 줄)
+                       최선을 다하겠습니다. (빈 줄)
+                       감사합니다.
                     """
 
                     response = client.chat.completions.create(
@@ -91,16 +99,17 @@ with col2:
                             {"role": "system", "content": system_instruction},
                             {"role": "user", "content": f"카테고리: {category}\n제목: {title}\n일정: {schedule}\n내용: {details}\n보상: {reward}"}
                         ],
-                        # temperature를 0으로 설정하여 일관성을 확보합니다.
-                        temperature=0
+                        temperature=0 # 일관성 고정
                     )
                     
                     final_notice = response.choices[0].message.content
                     
                     st.success("공지 생성이 완료되었습니다!")
                     st.divider()
-                    # 마크다운 렌더링을 통해 가독성을 확보합니다.
+                    
+                    # 💡 [핵심] 생성된 텍스트의 가독성을 위해 마크다운 뷰어에 표시
                     st.markdown(final_notice)
+                    
                     st.divider()
                     
                     st.download_button(
