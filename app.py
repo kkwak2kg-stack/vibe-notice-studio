@@ -1,11 +1,10 @@
 import streamlit as st
 from openai import OpenAI
 from datetime import datetime
+import re
 
-# 1. 페이지 설정
 st.set_page_config(page_title="Global Game Notice Studio Pro", page_icon="🌐", layout="wide")
 
-# CSS: 가독성 및 강조 색상 최적화
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -14,19 +13,18 @@ st.markdown("""
         padding: 40px;
         border-radius: 12px;
         color: #e0e0e0;
-        font-size: 16px;
-        line-height: 1.8;
+        font-size: 16.5px;
+        line-height: 1.9;
         border: 1px solid #333;
-    }
-    .notice-line {
-        margin-bottom: 15px; 
-        display: block;
     }
     .highlight-gold { color: #ffd700; font-weight: bold; }
     .highlight-red { color: #ff4b4b; font-weight: bold; }
+    .notice-line { margin-bottom: 12px; display: block; }
     
-    /* 표 스타일 */
-    .stMarkdown table { width: 100% !important; border-collapse: collapse; margin: 20px 0; background-color: #262a33; }
+    /* ARC 스타일 전용 주석 스타일 */
+    .note { color: #aaaaaa; font-size: 14.5px; padding-left: 20px; display: block; margin-bottom: 5px; }
+
+    .stMarkdown table { width: 100% !important; margin: 20px 0; }
     .stMarkdown th { background-color: #333 !important; color: #ffd700 !important; text-align: center !important; }
     .stMarkdown td { text-align: center !important; border: 1px solid #444; padding: 10px; }
     
@@ -34,9 +32,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🌐 글로벌 게임 공지사항 생성기")
+st.title("🌐 글로벌 게임 공지사항 생성기 (ARC Edition)")
 
-# 2. 보안 설정
 try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
@@ -44,63 +41,65 @@ except Exception:
     st.error("⚠️ Streamlit Secrets 설정을 확인해주세요.")
     st.stop()
 
-# 3. UI 레이아웃
 col1, col2 = st.columns([1, 1.3], gap="large")
 
 with col1:
     st.subheader("📋 공지 상세 설정")
     with st.form("notice_form"):
-        category = st.selectbox("공지 카테고리", ["기타(운영 정책/일반 공지)", "정기 점검 안내", "업데이트 패치노트", "이벤트 안내", "긴급 장애 사과문"])
-        c1, c2 = st.columns(2)
-        with c1: game_name = st.text_input("게임 명칭", value="바이브")
-        with c2: user_call = st.text_input("유저 호칭", value="모험가님")
-        title = st.text_input("공지 제목", value="불건전 행위 유저 대응 결과 안내")
-        c3, c4 = st.columns(2)
-        with c3: target_date = st.date_input("공지 일자", value=datetime.now())
-        with c4: reward = st.text_input("지급 보상", placeholder="내용이 없으면 비워두세요")
-        details = st.text_area("상세 내용", height=150, placeholder="예: 10개 계정 영구 정지, 전수 조사 완료")
-        submitted = st.form_submit_button("✨ 전문 공지 생성 시작")
+        game_name = st.text_input("게임 명칭", value="ARC")
+        user_call = st.text_input("유저 호칭", value="플레이어")
+        title = st.text_input("공지 제목", value="비정상 플레이 행위 대응 결과 안내")
+        reward = st.text_input("지급 보상 (없으면 비워둠)")
+        details = st.text_area("상세 내용 (팩트만 입력하세요)", height=200, 
+                             placeholder="예: 치트 133명 영구정지 및 랭크보상 제외, 탈주 17명 이용정지, 시스템 강화 중")
+        submitted = st.form_submit_button("🔥 ARC 팀 수준 고퀄리티 생성")
 
 with col2:
     st.subheader("📝 최종 결과 프리뷰")
     if submitted:
-        with st.spinner('최종 검수 중...'):
+        with st.spinner('ARC 팀의 논리와 서사를 입히는 중...'):
             try:
-                formatted_date = target_date.strftime("%Y년 %m월 %d일")
-                
-                # 보상 관련 지침 동적 생성
-                reward_instruction = f"지급 보상 정보('{reward}')가 비어있다면 관련 문구를 아예 포함하지 마라." if not reward else f"보상 내용인 '{reward}'을 자연스럽게 언급해라."
-
+                # ARC 팀 공지의 '논리적 구조'를 프롬프트에 이식
                 system_instruction = f"""
-                너는 국내 대형 게임사 시니어 CM이야. 
-                [필수 수칙]
-                1. 인사말: "안녕하세요 {user_call}, {game_name} 운영팀입니다."
-                2. 호칭: 유저 호칭({user_call})은 일반 텍스트로 작성하되, 강조가 꼭 필요한 문맥에서만 한정적으로 사용해라.
-                3. 문장 부호: ":." 와 같이 기호가 중복되지 않도록 주의해라.
-                4. 중복 제거: '감사합니다'는 마지막에 딱 한 번만 사용해라.
-                5. 맺음말: "더욱 즐거운 게임 환경을 제공하기 위해 최선으 다하겠습니다."는 일반 텍스트로 작성해라(색상 금지).
-                6. 보상: {reward_instruction}
-                7. 가독성: 마침표마다 문장을 끊어서 작성하고, 조치 리스트는 표 형식을 사용해라.
-                8. 강조: [R]영구 정지[R] 태그만 사용해라.
+                너는 'ARC'라는 글로벌 대형 게임사의 시니어 운영 파트장이야. 
+                단순한 정보 나열이 아닌, 유저들에게 감동과 신뢰를 주는 'ARC 팀 스타일'의 공지를 작성해라.
+
+                [ARC 팀 공지의 핵심 구조]
+                1. 도입: 공정한 경쟁 환경 유지에 대한 팀의 의지 표명.
+                2. 본문: 조치 대상(치트, 탈주 등)별로 섹션을 나누고, 왜 이 행위가 해로운지 설명할 것.
+                3. 디테일: 각 조치 사항 아래에는 '※' 기호를 사용한 주석을 달아 세부 규칙(예외 없는 제재, 데이터 검증 등)을 설명할 것.
+                4. 향후 계획: 시스템 강화 및 데이터 분석 체계 고도화 등 '미래의 의지'를 반드시 포함할 것.
+                5. 마무리: "깨끗한 게임 환경은 플레이어 여러분과 {game_name} 팀이 함께 만들어가는 약속입니다." 라는 문구를 사용할 것.
+
+                [기술 수칙]
+                - 인사말: "안녕하세요 {user_call} 여러분, {game_name} 운영팀입니다."
+                - 마침표마다 줄바꿈.
+                - 강조: [R]핵심조치[R], [G]{user_call}[G].
+                - 톤앤매너: 매우 진중하고, 논리적이며, 유저를 존중하는 태도.
                 """
-                
+
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": f"제목: {title}\n내용: {details}\n일자: {formatted_date}"}
+                        {"role": "user", "content": f"제목: {title}\n팩트 데이터: {details}\n보상: {reward}"}
                     ],
-                    temperature=0.3
+                    temperature=0.5 # 자연스러운 서사를 위해 약간 높임
                 )
-                raw_res = response.choices[0].message.content
                 
-                # 태그 변환
-                res_text = raw_res.replace("[R]", '<span class="highlight-red">').replace("[R]", "</span>")
+                res_text = response.choices[0].message.content
                 
+                # HTML 태그 변환 및 주석 스타일링
+                res_text = res_text.replace("[G]", '<span class="highlight-gold">').replace("[G]", "</span>")
+                res_text = res_text.replace("[R]", '<span class="highlight-red">').replace("[R]", "</span>")
+                res_text = re.sub(r'※ (.*)', r'<span class="note">※ \1</span>', res_text)
+
                 st.markdown('<div class="notice-container">', unsafe_allow_html=True)
                 lines = res_text.split('\n')
                 for line in lines:
                     if '|' in line:
+                        st.markdown(line, unsafe_allow_html=True)
+                    elif '※' in line:
                         st.markdown(line, unsafe_allow_html=True)
                     elif line.strip():
                         sentences = line.split('. ')
@@ -109,9 +108,6 @@ with col2:
                                 clean_s = s.strip() + ('.' if not s.endswith('.') else '')
                                 st.markdown(f'<span class="notice-line">{clean_s}</span>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
-                
-                save_text = res_text.replace('<span class="highlight-red">', "").replace("</span>", "")
-                st.download_button("💾 공지 텍스트 저장", save_text, file_name=f"Notice.txt")
                 
             except Exception as e:
                 st.error(f"오류 발생: {e}")
